@@ -14,6 +14,25 @@ import tsplib95.distances as distances
 import matplotlib.pyplot as plt
 import sys
 
+
+#alns libiary
+import warnings
+from collections import OrderedDict
+
+import numpy as np
+import numpy.random as rnd
+
+from alns.Result import Result
+from alns.State import State  # pylint: disable=unused-import
+from alns.Statistics import Statistics
+from alns.WeigthIndex import WeightIndex
+from alns.criteria import AcceptanceCriterion  # pylint: disable=unused-import
+from alns.exceptions_warnings import OverwriteWarning
+from alns.select_operator import select_operator
+
+
+
+
 SEED = 9876
 x_train=[]
 y_train=[]
@@ -34,7 +53,7 @@ with open('D:\\GIT\\ALNS\\xqf131.tour.txt') as f:
     best_solution = f.readlines()
     solution = best_solution[1]
     _ = solution.split(' ')
-    optimal = _[3]
+    optimal = int(_[3])
 
 print('Total optimal tour length is {0}.'.format(optimal))
 
@@ -274,67 +293,127 @@ func = nx.draw_networkx(G,pos, node_size=25, with_labels=False)
 
 
 
-# class ALNS:
+class ALNS:
 
-#     def __init__(self, rnd_state=rnd.RandomState()):
-#         self._destroy_operators = OrderedDict()
-#         self._repair_operators = OrderedDict()
+    def __init__(self, rnd_state=rnd.RandomState()):
+        self._destroy_operators = OrderedDict()
+        self._repair_operators = OrderedDict()
+        self._rnd_state = rnd_state
 
-#         self._rnd_state = rnd_state
+    def iterate(self, initial_solution, weights, operator_decay, criterion,
+                iterations=10000, collect_stats=True):
 
-#     def iterate(self, initial_solution, weights, operator_decay, criterion,
-#                 iterations=10000, collect_stats=True):
+        weights = np.asarray(weights, dtype=np.float16)
 
-#         weights = np.asarray(weights, dtype=np.float16)
+        self._validate_parameters(weights, operator_decay, iterations)
 
-#         self._validate_parameters(weights, operator_decay, iterations)
+        current = best = initial_solution
 
-#         current = best = initial_solution
+        d_weights = np.ones(len(self.destroy_operators), dtype=np.float16)
+        r_weights = np.ones(len(self.repair_operators), dtype=np.float16)
 
-#         d_weights = np.ones(len(self.destroy_operators), dtype=np.float16)
-#         r_weights = np.ones(len(self.repair_operators), dtype=np.float16)
+        statistics = Statistics()
 
-#         statistics = Statistics()
+        if collect_stats:
+            statistics.collect_objective(initial_solution.objective())
 
-#         if collect_stats:
-#             statistics.collect_objective(initial_solution.objective())
+        for iteration in range(iterations):
+            d_idx = select_operator(self.destroy_operators, d_weights,
+                                    self._rnd_state)
 
-#         for iteration in range(iterations):
-#             d_idx = select_operator(self.destroy_operators, d_weights,
-#                                     self._rnd_state)
+            r_idx = select_operator(self.repair_operators, r_weights,
+                                    self._rnd_state)
 
-#             r_idx = select_operator(self.repair_operators, r_weights,
-#                                     self._rnd_state)
+            d_name, d_operator = self.destroy_operators[d_idx]
+            destroyed = d_operator(current, self._rnd_state)
 
-#             d_name, d_operator = self.destroy_operators[d_idx]
-#             destroyed = d_operator(current, self._rnd_state)
+            r_name, r_operator = self.repair_operators[r_idx]
+            candidate = r_operator(destroyed, self._rnd_state)
 
-#             r_name, r_operator = self.repair_operators[r_idx]
-#             candidate = r_operator(destroyed, self._rnd_state)
+            current, weight_idx = self._consider_candidate(best, current,
+                                                            candidate, criterion)
 
-#             current, weight_idx = self._consider_candidate(best, current,
-#                                                            candidate, criterion)
+            if current.objective() < best.objective():
+                best = current
 
-#             if current.objective() < best.objective():
-#                 best = current
+            # The weights are updated as convex combinations of the current
+            # weight and the update parameter. See eq. (2), p. 12.
+            d_weights[d_idx] *= operator_decay
+            d_weights[d_idx] += (1 - operator_decay) * weights[weight_idx]
 
-#             # The weights are updated as convex combinations of the current
-#             # weight and the update parameter. See eq. (2), p. 12.
-#             d_weights[d_idx] *= operator_decay
-#             d_weights[d_idx] += (1 - operator_decay) * weights[weight_idx]
+            r_weights[r_idx] *= operator_decay
+            r_weights[r_idx] += (1 - operator_decay) * weights[weight_idx]
 
-#             r_weights[r_idx] *= operator_decay
-#             r_weights[r_idx] += (1 - operator_decay) * weights[weight_idx]
+            if collect_stats:
+                statistics.collect_objective(current.objective())
 
-#             if collect_stats:
-#                 statistics.collect_objective(current.objective())
+                statistics.collect_destroy_operator(d_name, weight_idx)
+                statistics.collect_repair_operator(r_name, weight_idx)
 
-#                 statistics.collect_destroy_operator(d_name, weight_idx)
-#                 statistics.collect_repair_operator(r_name, weight_idx)
+        return Result(best, statistics if collect_stats else None)
 
-#         return Result(best, statistics if collect_stats else None)
+    def add_destroy_operator(self, operator, name=None):
+        self._add_operator(self._destroy_operators, operator, name)
+
+    @staticmethod
+    def _add_operator(operators, operator, name=None):
+        if name is None:
+            name = operator.__name__
+
+        if name in operators:
+            warnings.warn("The ALNS instance already knows an operator by the"
+                          " name `{0}'. This operator will now be replaced with"
+                          " the newly passed-in operator. If this is not what"
+                          " you intended, consider explicitly naming your"
+                          " operators via the `name' argument.".format(name),
+                          OverwriteWarning)
+
+        operators[name] = operator
 
 
+    def add_repair_operator(self, operator, name=None):
+        self._add_operator(self._repair_operators, operator, name)
+
+
+    def _validate_parameters(self, weights, operator_decay, iterations):
+        if len(self.destroy_operators) == 0 or len(self.repair_operators) == 0:
+            raise ValueError("Missing at least one destroy or repair operator.")
+
+        if not (0 < operator_decay < 1):
+            raise ValueError("Operator decay parameter outside unit interval"
+                             " is not understood.")
+
+        if any(weight <= 0 for weight in weights):
+            raise ValueError("Non-positive weights are not understood.")
+
+        if len(weights) < 4:
+            # More than four is not explicitly problematic, as we only use the
+            # first four anyways.
+            raise ValueError("Unsupported number of weights: expected 4,"
+                             " found {0}.".format(len(weights)))
+
+        if iterations < 0:
+            raise ValueError("Negative number of iterations.")
+
+    @property
+    def destroy_operators(self):
+        return list(self._destroy_operators.items())
+
+    @property
+    def repair_operators(self):
+        return list(self._repair_operators.items())
+
+    def _consider_candidate(self, best, current, candidate, criterion):
+        if candidate.objective() < best.objective():
+            return candidate, WeightIndex.IS_BEST
+
+        if candidate.objective() < current.objective():
+            return candidate, WeightIndex.IS_BETTER
+
+        if criterion.accept(self._rnd_state, best, current, candidate):
+            return candidate, WeightIndex.IS_ACCEPTED
+
+        return current, WeightIndex.IS_REJECTED
 
 
 
@@ -350,10 +429,35 @@ alns.add_repair_operator(greedy_repair)
 
 
 
+
+
+from abc import ABC, abstractmethod
+from alns.State import State  # pylint: disable=unused-import
+from numpy.random import RandomState  # pylint: disable=unused-import
+
+class AcceptanceCriterion(ABC):
+    @abstractmethod
+    def accept(self, rnd, best, current, candidate):
+        return NotImplemented
+
+
+class HillClimbing(AcceptanceCriterion):
+    def accept(self, rnd, best, current, candidate):
+        return candidate.objective() <= current.objective()
+
+
+
+
+
+
 # This is perhaps the simplest selection criterion, where we only accept
 # progressively better solutions.
 criterion = HillClimbing()
-
+'''
+[3,2,1,0.5]最好、局部最优、接受、拒绝的权重
+0.8运算衰减参数
+criterion接受标准
+'''
 result = alns.iterate(initial_solution, [3, 2, 1, 0.5], 0.8, criterion,
                       iterations=5000, collect_stats=True)
 
