@@ -274,7 +274,65 @@ func = nx.draw_networkx(G,pos, node_size=25, with_labels=False)
 
 
 
+# class ALNS:
 
+#     def __init__(self, rnd_state=rnd.RandomState()):
+#         self._destroy_operators = OrderedDict()
+#         self._repair_operators = OrderedDict()
+
+#         self._rnd_state = rnd_state
+
+#     def iterate(self, initial_solution, weights, operator_decay, criterion,
+#                 iterations=10000, collect_stats=True):
+
+#         weights = np.asarray(weights, dtype=np.float16)
+
+#         self._validate_parameters(weights, operator_decay, iterations)
+
+#         current = best = initial_solution
+
+#         d_weights = np.ones(len(self.destroy_operators), dtype=np.float16)
+#         r_weights = np.ones(len(self.repair_operators), dtype=np.float16)
+
+#         statistics = Statistics()
+
+#         if collect_stats:
+#             statistics.collect_objective(initial_solution.objective())
+
+#         for iteration in range(iterations):
+#             d_idx = select_operator(self.destroy_operators, d_weights,
+#                                     self._rnd_state)
+
+#             r_idx = select_operator(self.repair_operators, r_weights,
+#                                     self._rnd_state)
+
+#             d_name, d_operator = self.destroy_operators[d_idx]
+#             destroyed = d_operator(current, self._rnd_state)
+
+#             r_name, r_operator = self.repair_operators[r_idx]
+#             candidate = r_operator(destroyed, self._rnd_state)
+
+#             current, weight_idx = self._consider_candidate(best, current,
+#                                                            candidate, criterion)
+
+#             if current.objective() < best.objective():
+#                 best = current
+
+#             # The weights are updated as convex combinations of the current
+#             # weight and the update parameter. See eq. (2), p. 12.
+#             d_weights[d_idx] *= operator_decay
+#             d_weights[d_idx] += (1 - operator_decay) * weights[weight_idx]
+
+#             r_weights[r_idx] *= operator_decay
+#             r_weights[r_idx] += (1 - operator_decay) * weights[weight_idx]
+
+#             if collect_stats:
+#                 statistics.collect_objective(current.objective())
+
+#                 statistics.collect_destroy_operator(d_name, weight_idx)
+#                 statistics.collect_repair_operator(r_name, weight_idx)
+
+#         return Result(best, statistics if collect_stats else None)
 
 
 
