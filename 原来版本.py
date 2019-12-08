@@ -4,6 +4,8 @@ Created on Fri Dec  6 18:57:42 2019
 
 @author: 35764
 """
+#36秒
+
 
 from alns import ALNS, State
 from alns.criteria import HillClimbing

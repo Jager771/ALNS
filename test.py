@@ -93,11 +93,6 @@ func = nx.draw_networkx_nodes(G,pos, node_size=25, with_labels=False)
 
 #Solution state
 class TspState(State):
-    """
-    Solution class for the TSP problem. It has two data members, nodes, and edges.
-    nodes is a list of node tuples: (id, coords). The edges data member, then, is
-    a mapping from each node to their only outgoing node.
-    """
 
     def __init__(self, nodes, edges):
         self.nodes = nodes
@@ -253,7 +248,9 @@ def greedy_repair(current, random_state):
 
 
 
-#Initial solution
+
+
+#Initial solution 初始解
 random_state = rnd.RandomState(SEED)
 state = TspState(list(pos.items()), {})
 
