@@ -71,7 +71,7 @@ func = nx.draw_networkx_nodes(G,pos, node_size=25, with_labels=False)
 
 
 #模拟退火接受参数
-T = 3000  # 起始温度
+T = 9000  # 起始温度
 alpha = 0.995  # T_{k+1} = alpha * T_k方式更新温度
 limitedT = 1.  # 最小值的T
 iterTime = 2000  # 每个温度下迭代的次数
@@ -80,12 +80,12 @@ p = 0
 
 #评估系数
 lenda = 0.8 # 
-w= [3, 2, 1, 0.5]
+w= [3, 2, 1, 0.5] 
 num_of_method = 0
-weight = [1,1]   #权重ρ
+weight = [1,1,1]    #权重加方法要变
 destory_p = [] #各种destory方法的概率
 #initial_solution当前解，best_sol全局最优解
-
+degree_of_destruction = 0.25
 
 class TspState():
     def __init__(self, nodes, edges):
@@ -127,21 +127,31 @@ class TspState():
             best_sol = destoryed
         return w_index,best_distance,best_sol
         
+    def edges_to_remove(state):
+        return int(len(state.edges) * degree_of_destruction)
     
-    '''
-    加方法要变
-    '''
+    
+        '''
+        加方法要变
+        '''
     def choose(self):
         p_buttom = 0 #选择方法时候的底数
 
         for i in range(len(weight)):
             p_buttom += weight[i]
 
-        p1 = weight[i] / p_buttom
-        p2 = 1 - p1
+        p1 = weight[0] / p_buttom
+        p2 = weight[1] / p_buttom
+        p3 = 1 - p1 -p2
         # np.random.seed(0)
-        p = np.array([p1,p2])
-        index_of_destory = np.random.choice([0, 1], p = p.ravel())
+        p = np.array([p1,p2,p3])
+     
+        '''
+        加方法要变
+        '''
+        
+        
+        index_of_destory = np.random.choice([0, 1, 2], p = p.ravel())   #加方法要变
         return index_of_destory
     
     
@@ -162,20 +172,14 @@ class TspState():
     
 class r_greedy():
     def greedy_repair(self,current, random_state):
-        """
-        current是tspsolution类，有nodes和edges两个属性
-        Greedily repairs a tour, stitching up nodes that are not departed
-        with those not visited.
-        """
         visited = set(current.edges.values())
       
-        # This kind of randomness ensures we do not cycle between the same
-        # destroy and repair steps every time.
+        #随机保证每次的Greedy不是同一种repair
         shuffled_idcs = random_state.permutation(len(current.nodes))   # 0到130的ndarray随机排列组合
         nodes = [current.nodes[idx] for idx in shuffled_idcs]
     
-        while len(current.edges) != len(current.nodes): #.edges边 .nodes点
-            node = next(node for node in nodes 
+        while len(current.edges) != len(current.nodes): #当点与边不同的时候
+            node = next(node for node in nodes          #选择当前不在edge的点
                         if node not in current.edges) 
     
             # Computes all nodes that have not currently been visited,
@@ -248,6 +252,9 @@ local_best_distance = initial_dis
 best_sol = initial_solution
 
 
+#破坏的数量
+num_of_destoryed = initial_solution.edges_to_remove()
+
 
 #初始解画图 
 G=nx.Graph()
@@ -274,8 +281,9 @@ class d_longest():
         return s_f_l
     
     def destroy(self,destoryed):
+
         _ = self.search_for_longest(destoryed)
-        for i in range(30):
+        for i in range(num_of_destoryed):
             destoryed.edges.pop(destoryed.nodes[_[i][0][0]])
     
     def solve(self,state):
@@ -288,10 +296,11 @@ d_l = d_longest()
 
 class d_random30():
     def solve(self,state):
-        s = [ i for i in range(131)]
-        r = random.sample(s,30)
+
+        s = [ i for i in range(n)]
+        r = random.sample(s,num_of_destoryed)
         destoryed = state.copy()
-        for i in range(30):
+        for i in range(num_of_destoryed):
             destoryed.edges.pop(destoryed.nodes[r[i]])    
         destoryed = r_g.greedy_repair(destoryed, random_state)
         return destoryed
@@ -299,46 +308,72 @@ class d_random30():
 d_r = d_random30()
 
 
-for i in range(5000):
-    index_of_destory = initial_solution.choose()
-    '''
-    加方法要变
-    '''
-    if index_of_destory == 0:
-        destoryed = d_l.solve(initial_solution)
 
-    elif index_of_destory == 1:
-        destoryed = d_r.solve(initial_solution)
-    result = destoryed.calculate_distance(destoryed)
+class d_consective():
+    def solve(self,state):
+        r = random.randint(0,n-1)
+        destoryed = state.copy()
+        
+        node_to_destory = state.nodes[r] 
+        next_node = destoryed.edges[node_to_destory]
+        
+        for i in range(num_of_destoryed):
+            
+            destoryed.edges.pop(node_to_destory)    
+            
+            node_to_destory = next_node
+            next_node = destoryed.edges[node_to_destory]
+        destoryed = r_g.greedy_repair(destoryed, random_state)
+        return destoryed
+d_c = d_consective()
+
+
+
+
+if __name__ == '__main__':
+    for i in range(5000):
+        index_of_destory = initial_solution.choose()
+        '''
+        加方法要变
+        '''
+        if index_of_destory == 0:
+            destoryed = d_l.solve(initial_solution)
+    
+        elif index_of_destory == 1:
+            destoryed = d_r.solve(initial_solution)
+            
+        elif index_of_destory == 2:
+            destoryed = d_c.solve(initial_solution)
+            
+            
+        result = destoryed.calculate_distance(destoryed)
+        index,local_best_distance,initial_solution=initial_solution.accept_1(local_best_distance,result,initial_solution,destoryed)
+        index,best_distance,best_sol=initial_solution.accept_2(best_distance,result,best_sol,destoryed)
+        
+        destoryed.update(index_of_destory,index)
+
+    
+
+    #画最终解的图 
+    G=nx.Graph()
+    nodes = point
+    names = {n for n in range(len(point))}
+    G.add_nodes_from(names)
     
     
-    index,local_best_distance,initial_solution=initial_solution.accept_1(local_best_distance,result,initial_solution,destoryed)
-    index,best_distance,best_sol=initial_solution.accept_2(best_distance,result,best_sol,destoryed)
+    for a,b in best_sol.edges.items():
+        a=a[0]
+        b=b[0]
+        G.add_edge(a,b)
     
-    destoryed.update(index_of_destory,index)
-
+    # G.add_edge(best_route[-1],best_route[-2])    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    func = nx.draw_networkx(G,pos, node_size=25, with_labels=False)
     
-
-#画最终解的图 
-G=nx.Graph()
-nodes = point
-names = {n for n in range(len(point))}
-G.add_nodes_from(names)
-
-
-for a,b in best_sol.edges.items():
-    a=a[0]
-    b=b[0]
-    G.add_edge(a,b)
-
-# G.add_edge(best_route[-1],best_route[-2])    
-fig, ax = plt.subplots(figsize=(12, 6))
-func = nx.draw_networkx(G,pos, node_size=25, with_labels=False)
-
-
-print('Best heuristic objective is {0}.'.format(best_distance))
-print('This is {0:.1f}% worse than the optimal solution, which is {1}.'
-      .format(100 * (best_distance - optimal) / optimal, optimal))
+    
+    print('Best heuristic objective is {0}.'.format(best_distance))
+    print('This is {0:.1f}% worse than the optimal solution, which is {1}.'
+          .format(100 * (best_distance - optimal) / optimal, optimal))
 
 
 
