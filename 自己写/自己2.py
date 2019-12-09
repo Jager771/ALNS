@@ -190,6 +190,7 @@ class r_greedy():
                          if other != node
                          if other not in visited
                          if not self.would_form_subcycle(node, other, current)}
+            #unvisited 可以的候选解 1、不等于起始点 2、入度为0 3、
             d_near = sys.maxsize
             for item in unvisited:
                 e_num = item[0]
@@ -200,9 +201,9 @@ class r_greedy():
             
             nearest = d_num
             # Closest visitable node.
-            # nearest = min(unvisited, key=lambda other: distances.euclidean(node[1], other[1]))
+           
     
-            current.edges[node] = nearest
+            current.edges[node] = nearest #选择node的最近点
             visited.add(nearest)
     
         return current
@@ -216,15 +217,17 @@ class r_greedy():
         the current node under consideration, as it cannot yet be part of
         a cycle.
         """
-        for step in range(1, len(state.nodes)):
-            if to_node not in state.edges:
+        #返回false 接受
+        for step in range(1, len(state.nodes)):  #len - 1个，把当前计算的点排除在外，因为不可能形成子循环
+            if to_node not in state.edges:      #to_node 出度为0
                 return False
     
-            to_node = state.edges[to_node]
+            to_node = state.edges[to_node]      #若to_node出度为1，则to_node指向其指向的节点
             
-            if from_node == to_node and step != len(state.nodes) - 1:
+            if from_node == to_node and step != len(state.nodes) - 1:   #若
                 return True
-    
+        
+        #for结束后则return False
         return False
 #repair的greedy方法
 r_g = r_greedy()
