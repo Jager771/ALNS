@@ -71,10 +71,9 @@ func = nx.draw_networkx_nodes(G,pos, node_size=25, with_labels=False)
 
 
 #模拟退火接受参数
-T = 9000  # 起始温度
+T = 7000  # 起始温度
 alpha = 0.995  # T_{k+1} = alpha * T_k方式更新温度
-limitedT = 1.  # 最小值的T
-iterTime = 2000  # 每个温度下迭代的次数
+
 K = 0.8  # 系数K
 p = 0
 
@@ -96,7 +95,7 @@ class TspState():
         return TspState(self.nodes.copy(),
                         self.edges.copy())
 
-    def accept_1(self,local_best_distance,result,initial_solution,destoryed):
+    def accept_1(self,local_best_distance,result,initial_solution,destoryed): #局部最优解，当前解的cost，初始解，当前解
         # global T,alpha,limitedT,iterTime,K,p
         # w2_index,w3_index,w4_index = 0,0,0    
         global T
@@ -119,7 +118,7 @@ class TspState():
                 return w_index,local_best_distance,initial_solution
         
 
-    def accept_2(self,best_distance,result,best_sol,destoryed):
+    def accept_2(self,best_distance,result,best_sol,destoryed): #最优解cost，当前解cost，最优解，当前解
         global w_index
         if result < best_distance:
             w_index = 0
@@ -182,10 +181,8 @@ class r_greedy():
             node = next(node for node in nodes          #选择当前不在edge的点
                         if node not in current.edges) 
     
-            # Computes all nodes that have not currently been visited,
-            # that is, those that this node might visit. This should
-            # not result in a subcycle, as that would violate the TSP
-            # constraints.
+
+            #unvisited 是考虑用greedy计算的点
             unvisited = {other for other in current.nodes
                          if other != node
                          if other not in visited
@@ -210,21 +207,14 @@ class r_greedy():
 
 
     def would_form_subcycle(self,from_node, to_node, state):
-        """
-        from_node：随机排列组合中的下一个点    to_node：前往的点       state:tspsolution类
-        Ensures the proposed solution would not result in a cycle smaller
-        than the entire set of nodes. Notice the offsets: we do not count
-        the current node under consideration, as it cannot yet be part of
-        a cycle.
-        """
         #返回false 接受
         for step in range(1, len(state.nodes)):  #len - 1个，把当前计算的点排除在外，因为不可能形成子循环
-            if to_node not in state.edges:      #to_node 出度为0
+            if to_node not in state.edges:      #to_node 出度为0 ， 可以考虑
                 return False
     
-            to_node = state.edges[to_node]      #若to_node出度为1，则to_node指向其指向的节点
+            to_node = state.edges[to_node]      #若to_node出度为1，则to_node变为其指向的节点，不断进行，查阅其subcycle直到尽头
             
-            if from_node == to_node and step != len(state.nodes) - 1:   #若
+            if from_node == to_node and step != len(state.nodes) - 1:   #若from_node就是to_node指向的点，会形subcycle，不考虑将这个点加入unvisited
                 return True
         
         #for结束后则return False
@@ -334,7 +324,7 @@ d_c = d_consective()
 
 
 if __name__ == '__main__':
-    for i in range(5000):
+    for i in range(7000):
         index_of_destory = initial_solution.choose()
         '''
         加方法要变
@@ -369,15 +359,28 @@ if __name__ == '__main__':
         b=b[0]
         G.add_edge(a,b)
     
-    # G.add_edge(best_route[-1],best_route[-2])    
+       
     fig, ax = plt.subplots(figsize=(12, 6))
     func = nx.draw_networkx(G,pos, node_size=25, with_labels=False)
     
+    r = random.randint(0,n-1)
     
+    node_cor = best_sol.nodes[r]
+    node_next = best_sol.edges[node_cor]
+    best_route = []
+    for i in range(n):
+            
+        best_route.append(node_cor)    
+            
+        node_cor = node_next
+        node_next = best_sol.edges[node_cor] 
+        
+    print('Best heuristic path is')
+    print(best_route)
     print('Best heuristic objective is {0}.'.format(best_distance))
     print('This is {0:.1f}% worse than the optimal solution, which is {1}.'
           .format(100 * (best_distance - optimal) / optimal, optimal))
-
+    
 
 
 
